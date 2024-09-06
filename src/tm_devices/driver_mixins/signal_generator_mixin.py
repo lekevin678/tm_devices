@@ -104,6 +104,16 @@ class SignalGeneratorMixin(ExtendableMixin, ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def set_output_state(self, state: Literal[0, 1], channel: str = "all") -> None:
+        """Set the output state to ON/OFF (1/0) for the specified channel.
+
+        Args:
+            state: The output state.
+            channel: The channel name to set the output state, or 'all'.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def setup_burst(  # noqa: PLR0913
         self,
         frequency: float,
