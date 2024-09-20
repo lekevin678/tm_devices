@@ -221,6 +221,17 @@ class AFG(SignalGenerator, ABC):
             sample_rate_range=sample_rate_range,
         )
 
+    def set_output_state(self, state: Literal[0, 1], channel: str = "all") -> None:
+        """Set the output state to ON/OFF (1/0) for the specified source channel.
+
+        Args:
+            state: The output state.
+            channel: The channel name to set the output state for, or 'all'.
+        """
+        for channel_name in self._validate_channels(channel):
+            source_channel = self.source_channel[channel_name]
+            source_channel.set_state(state)
+
     ################################################################################################
     # Private Methods
     ################################################################################################
