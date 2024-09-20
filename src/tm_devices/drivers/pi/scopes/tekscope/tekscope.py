@@ -633,6 +633,16 @@ class TekScope(
         self.commands.acquire.state.write(1)
         self._ieee_cmds.opc()
 
+    def set_output_state(self, state: Literal[0, 1], channel: str = "all") -> None:  # noqa: ARG002
+        """Set the output state to ON/OFF (1/0) for the internal AFG.
+
+        Args:
+            state: The output state.
+            channel: Unused in this class.
+        """
+        # TODO: Turn off REFOUT and on MSO2's turn off the Digital Pattern Generator (DPG).
+        self.internal_afg.set_state(state)
+
     def turn_channel_off(self, channel_str: str) -> None:
         """Turn off the specified channel.
 
