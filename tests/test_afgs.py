@@ -224,6 +224,15 @@ def test_afg3k(device_manager: DeviceManager) -> None:  # noqa: PLR0915  # pylin
     query_value = afg3252c.query("SOURCE1:BURST:NCYCLES?")
     assert float(query_value) == 10
 
+    # Test set output state.
+    afg3252c.set_output_state(state=0)
+    assert not int(afg3252c.query("OUTPUT1:STATE?"))
+    assert not int(afg3252c.query("OUTPUT2:STATE?"))
+
+    afg3252c.set_output_state(state=1, channel="SOURCE1")
+    assert int(afg3252c.query("OUTPUT1:STATE?")) == 1
+    assert not int(afg3252c.query("OUTPUT2:STATE?"))
+
 
 def test_afg31k(device_manager: DeviceManager, capsys: pytest.CaptureFixture[str]) -> None:
     """Test the AFG31K driver.

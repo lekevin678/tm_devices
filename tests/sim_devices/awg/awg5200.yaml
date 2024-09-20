@@ -61,6 +61,36 @@ devices:
         specs:
           valid: [0, 1]
           type: int
+      output_2_state:
+        default: 0
+        getter:
+          q: OUTPUT2:STATE?
+          r: '{:d}'
+        setter:
+          q: OUTPUT2:STATE {:d}
+        specs:
+          valid: [0, 1]
+          type: int
+      output_3_state:
+        default: 0
+        getter:
+          q: OUTPUT3:STATE?
+          r: '{:d}'
+        setter:
+          q: OUTPUT3:STATE {:d}
+        specs:
+          valid: [0, 1]
+          type: int
+      output_4_state:
+        default: 0
+        getter:
+          q: OUTPUT4:STATE?
+          r: '{:d}'
+        setter:
+          q: OUTPUT4:STATE {:d}
+        specs:
+          valid: [0, 1]
+          type: int
       clock_srate:
         default: 5000000000.0
         getter:

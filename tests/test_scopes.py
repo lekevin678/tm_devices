@@ -144,6 +144,11 @@ def test_tekscope(device_manager: DeviceManager) -> None:  # noqa: PLR0915
             0.0,
             "all",
         )
+
+    # Test set output state.
+    scope.set_output_state(state=0)
+    assert not int(scope.query("AFG:OUTPUT:STATE?"))
+
     # Test saving waveform functionality
     scope.save_waveform_to_reference("temp.wfm", "REF1")
     # Assert there are no errors after testing waveform generations and saving

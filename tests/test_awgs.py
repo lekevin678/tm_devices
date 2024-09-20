@@ -60,7 +60,7 @@ def check_constraints(
 
 
 # pylint: disable=too-many-locals
-def test_awg5200(device_manager: DeviceManager, capsys: pytest.CaptureFixture[str]) -> None:
+def test_awg5200(device_manager: DeviceManager, capsys: pytest.CaptureFixture[str]) -> None:  # noqa: PLR0915
     """Test the AWG5200 driver.
 
     Args:
@@ -166,6 +166,19 @@ def test_awg5200(device_manager: DeviceManager, capsys: pytest.CaptureFixture[st
     awg520050.set_sample_rate(5000000000, absolute_tolerance=10)
     query_val = awg520050.query("CLOCK:SRATE?")
     assert float(query_val) == 5000000000
+
+    # Test set output state.
+    awg520050.set_output_state(state=1)
+    assert int(awg520050.query("OUTPUT1:STATE?")) == 1
+    assert int(awg520050.query("OUTPUT2:STATE?")) == 1
+    assert int(awg520050.query("OUTPUT3:STATE?")) == 1
+    assert int(awg520050.query("OUTPUT4:STATE?")) == 1
+
+    awg520050.set_output_state(state=0, channel="SOURCE2")
+    assert int(awg520050.query("OUTPUT1:STATE?")) == 1
+    assert not int(awg520050.query("OUTPUT2:STATE?"))
+    assert int(awg520050.query("OUTPUT3:STATE?")) == 1
+    assert int(awg520050.query("OUTPUT4:STATE?")) == 1
 
 
 def test_awg70k(  # noqa: PLR0915  # pylint: disable=too-many-locals
