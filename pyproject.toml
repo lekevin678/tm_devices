@@ -8,6 +8,12 @@ requires = ["poetry-core>=1.9.0"]
 py-gte-39 = "sys_version_info >= (3, 9)"
 py-lt-39 = "sys_version_info < (3, 9)"
 
+[tool.coverage.paths]
+source = [
+  ".tox/**/site-packages/tm_devices",
+  "src/tm_devices"
+]
+
 [tool.coverage.report]
 exclude_lines = [
   "if TYPE_CHECKING:",
@@ -59,7 +65,7 @@ keywords = [
   "Test & Measurement",
   "VISA"
 ]
-license = "Apache License 2.0"
+license = "Apache-2.0"
 maintainers = [
   "Tektronix <opensource@tektronix.com>",
   "Nicholas Felt <nicholas.felt@tektronix.com>"
@@ -67,9 +73,10 @@ maintainers = [
 name = "tm_devices"
 readme = "README.md"
 repository = "https://github.com/tektronix/tm_devices"
-version = "2.3.0"
+version = "2.5.0"
 
 [tool.poetry.dependencies]
+colorlog = "^6.9.0"
 gpib-ctypes = "^0.3.0"
 libusb-package = "^1.0.26.0,!=1.0.26.2"  # 1.0.26.2 doesn't work with Python 3.12
 packaging = "^24.0"
@@ -88,12 +95,12 @@ tomli = "^2.0.1"
 tomli-w = "^1.0.0"
 traceback-with-variables = "^2.0.4"
 typing-extensions = "^4.10.0"
+tzlocal = "^5.2"
 urllib3 = "^2.0"
-zeroconf = "^0.133.0"
+zeroconf = "^0.136.0"
 
 [tool.poetry.group.dev.dependencies]
-docutils = "^0.20"  # TODO: remove this when the minimum Python version is >=3.9
-docutils-stubs = "^0.0.22"
+docutils = "^0.20"  # TODO: Drop Python 3.8: remove this when the minimum Python version is >=3.9
 nodeenv = "^1.9.1"
 pip = "^24.0"
 poetry = "^1.8.0"
@@ -105,7 +112,7 @@ pre-commit = [
   {python = "3.8", version = "^3.5"}
 ]
 pylint = "3.2.7"
-pyright = "1.1.378"
+pyright = {extras = ["nodejs"], version = "1.1.389"}
 pyroma = "^4.2"
 tox = "^4.0"
 tox-gh-actions = "^3.1.0"
@@ -113,7 +120,7 @@ twine = "^5.0.0"
 types-python-dateutil = "^2.9"
 types-pyyaml = "^6.0"
 types-requests = "^2.31"
-wheel = "^0.44.0"
+wheel = "^0.45.0"
 
 [tool.poetry.group.docs.dependencies]
 black = "^24.4.2"
@@ -149,7 +156,7 @@ pytest-env = "^1.1.3"
 pytest-github-report = "^0.0.1"
 pytest-html = "^4.1.1"
 pytest-order = "^1.2.1"
-ruff = "0.6.3"
+ruff = "0.7.4"
 
 [tool.poetry.scripts]
 list-visa-resources = "tm_devices:print_available_visa_devices"
@@ -163,7 +170,11 @@ good-names = ["_"]
 
 [tool.pylint.design]
 max-args = 7
-max-parents = 20
+
+[tool.pylint.dunder]
+good-dunder-names = [
+  "__isabstractmethod__"
+]
 
 [tool.pylint.main]
 fail-under = 10.0
@@ -208,21 +219,25 @@ disable = [
   "duplicate-code",
   "fixme",  # caught by ruff
   "global-statement",  # caught by ruff
+  "import-private-name",  # caught by pyright
   "invalid-name",  # caught by ruff
   "line-too-long",  # caught by ruff
   "locally-disabled",  # allowed
   "missing-class-docstring",  # caught by ruff
+  "missing-function-docstring",  # caught by ruff
   "missing-module-docstring",  # caught by ruff
   "no-member",  # caught by pyright
   "protected-access",  # caught by ruff
   "raise-missing-from",  # caught by ruff
   "redefined-builtin",  # caught by ruff
   "suppressed-message",  # allowed
+  "too-many-ancestors",  # allowed
   "too-many-arguments",  # caught by ruff
   "too-many-branches",  # caught by ruff
   "too-many-lines",  # not necessary to check for
   "too-many-statements",  # caught by ruff
   "too-many-statements",  # caught by ruff
+  "unexpected-keyword-arg",  # caught by pyright
   "unused-argument",  # caught by ruff
   "unused-import",  # caught by ruff
   "use-implicit-booleaness-not-comparison-to-string",  # caught by ruff
@@ -236,7 +251,7 @@ disable = [
 # 'convention', and 'info' which contain the number of messages in each category,
 # as well as 'statement' which is the total number of statements analyzed. This
 # score is used by the global evaluation report (RP0004).
-evaluation = "max(0, 0 if fatal else 10.0 - ((float(5 * error + warning + refactor + convention + info) / statement) * 10))"
+evaluation = "max(0, 0 if fatal else 10.0 - ((float(5.0 * error + (warning + refactor + convention + info)) / statement) * 10.0))"
 score = true
 output-format = "text"  # colorized could be another option
 
@@ -250,7 +265,6 @@ pythonPlatform = "All"
 pythonVersion = "3.8"
 reportCallInDefaultInitializer = "error"
 reportImplicitOverride = "none"  # this check is not needed
-# TODO: turn on the check for implicit string concatenation
 reportImplicitStringConcatenation = "none"  # this is allowed by this project's formatting standard
 reportImportCycles = "none"  # other analysis tools catch these more effectively
 reportMissingSuperCall = "none"  # this can be ignored since this would break unit tests if handled incorrectly
@@ -276,6 +290,7 @@ filterwarnings = [
 ]
 junit_family = "xunit2"
 junit_logging = "all"
+log_format = "[%(asctime)s] [%(levelname)8s] %(message)s"
 markers = [
   'docs',
   'order',
@@ -304,27 +319,19 @@ fixable = ["ALL"]
 flake8-pytest-style = {mark-parentheses = false}
 flake8-quotes = {docstring-quotes = "double"}
 ignore = [
-  "ANN101",  # Missing type annotation for self in method
-  "ANN102",  # Missing type annotation for cls in method
-  "ANN401",  # Dynamically typed expressions (typing.Any) are disallowed in *args and **kwargs
-  "COM812",  # Trailing comma missing
-  "EM102",  # Exception must not use an f-string literal, assign to variable first
-  "FA100",  # Missing `from __future__ import annotations`, but uses ...
-  "FBT",  # flake8-boolean-trap
-  "FIX002",  # Line contains TO DO
+  "ANN401",  # Dynamically typed expressions (typing.Any) are disallowed in *args and **kwargs (allowed in this package)
+  "COM812",  # Trailing comma missing (allowed in this package)
+  "FA100",  # Missing `from __future__ import annotations`, but uses ... (allowed in this package)
+  "FBT",  # flake8-boolean-trap  # TODO: enable this
+  "FIX002",  # Line contains TO DO (allowed in this package)
   "ISC001",  # single-line-implicit-string-concatenation (handled by formatter)
-  "PTH109",  # `os.getcwd()` should be replaced by `Path.cwd()`
-  "PTH123",  # `open()` should be replaced by `Path.open()`
-  "PTH207",  # Replace `iglob` with `Path.glob` or `Path.rglob`
-  "PYI021",  # Docstrings should not be included in stubs
-  "T20",  # flake8-print
-  "TD002",  # Missing author in TO DO
-  "TD003",  # Missing issue link on the line following this TO DO
-  "TRY301",  # Abstract raise to an inner function
-  "UP006",  # Use {to} instead of {from} for type annotation
-  "UP007",  # Use `X | Y` for type annotations
-  "UP024",  # Replace aliased errors with `OSError`
-  "UP037"  # Remove quotes from type annotation
+  "PYI021",  # Docstrings should not be included in stubs (allowed in this package)
+  "TD002",  # Missing author in TO DO (allowed in this package)
+  "TD003",  # Missing issue link on the line following this TO DO (allowed in this package)
+  "UP006",  # Use {to} instead of {from} for type annotation (allowed in this package)
+  "UP007",  # Use `X | Y` for type annotations (allowed in this package)
+  "UP024",  # Replace aliased errors with `OSError` (allowed in this package)
+  "UP037"  # Remove quotes from type annotation (allowed in this package)
 ]
 pydocstyle = {convention = "google"}
 pylint = {max-args = 7}
@@ -346,7 +353,9 @@ order-by-type = false
 
 [tool.ruff.lint.per-file-ignores]
 "examples/**" = [
-  "S101"  # Use of assert detected
+  "FBT",  # flake8-boolean-trap
+  "S101",  # Use of assert detected
+  "T201"  # `print` found
 ]
 "examples/miscellaneous/custom_device_driver_support.py" = [
   "ARG002",  # Unused method argument
@@ -404,10 +413,10 @@ legacy_tox_ini = """
 [tox]
 requires = tox>4
 isolated_build = True
-envlist = py38,py39,py310,py311,py312,tests,docs,doctests
+envlist = py38,py39,py310,py311,py312,py313,tests,docs,doctests
 skip_missing_interpreters = True
 labels =
-  basic = py38,py39,py310,py311,py312,tests
+  basic = py38,py39,py310,py311,py312,py313,tests
   documentation = docs,doctests
 
 [gh-actions]
@@ -417,6 +426,7 @@ python =
     3.10: py310
     3.11: py311
     3.12: py312
+    3.13: py313
 
 [testenv]
 package = wheel
@@ -431,8 +441,9 @@ setenv =
     # Skip pre-commit checks that are not needed (yamlfix should be removed from this list once Python 3.8 support is dropped)
     SKIP = file-contents-sorter,yamlfix
 commands_pre =
-    poetry install --no-root --without=main
+    python -m poetry install --no-root --without=main
 commands =
+    !tests: python -c "import shutil; shutil.rmtree('dist_{envname}', ignore_errors=True)"
     !tests: poetry build --output=dist_{envname}
     !tests: twine check --strict dist_{envname}/*
     !tests: pre-commit run --all-files

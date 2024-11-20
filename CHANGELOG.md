@@ -20,12 +20,127 @@ Things to be included in the next release go here.
 
 ### Added
 
+- Added a new mixin, `ScreenCaptureMixin`, that defines methods/properties used for capturing screenshots from devices.
+- Added screen capture capabilities to the `TekScope` family of device drivers.
+- Testing/linting on Python 3.13.
+- Added the `get_errors()` method to the `Device` class to enable easy access to the current error code and messages on any device.
+- Added more details to the Architectural Overview page of the documentation as well as highlighting to the device driver diagram on the page.
+- Added regex matching to the `verify_values()` helper function to allow for more flexible value verification.
+- A main logfile is now created by default (can be disabled if desired) that contains all the logging output of the entire tm_devices package during execution.
+    - Use the `configure_logging()` function to set the logging levels for stdout and file logging.
+    - The default settings will log all messages to the log file and maintain the current printout functionality on stdout.
+- A logfile is now created that contains each command sent to a VISA device.
+    - This file is located next to the main log file and will start with the same name, but have the unique address of the device appended.
+    - This file will only be created if file logging is enabled for the package (which is the default behavior).
+
+### Changed
+
+NOTE: Despite all the officially breaking changes, the actual drivers were only affected in
+very minor ways. The primary impact to the drivers was simply the removal of previously
+deprecated functionality. Almost all changes only impacted the internal workings of `tm_devices`.
+However, please read through all changes to be aware of what may potentially impact your code.
+
+- _**<span style="color:orange">minor breaking change</span>**_: Moved `SignalGenerator` class to the `driver_mixins` submodule and renamed it to `_TektronixPIAFGAWGMixin` (also made it a private mixin).
+- _**<span style="color:orange">minor breaking change</span>**_: Renamed the `PIDevice`, `TSPDevice`, and `RESTAPIDevice` classes to `PIControl`, `TSPControl`, and `RESTAPIControl` respectively.
+- _**<span style="color:orange">minor breaking change</span>**_: Moved the `PIControl`, `TSPControl`, and `RESTAPIControl` classes into a mixin folder so that they can be used as mixins rather than being part of the required inheritance structure.
+    - In order to use these control mixins, they must be inherited at the family base class level in the driver hierarchy, along with the device type class (or any class that inherits from the base `Device` class and defines a `device_type` property and the other required abstract property implementations).
+    - Due to this change, it is recommended that the specific device driver (or at least the family base class) for the device being controlled is used for type hinting.
+- _**<span style="color:orange">minor breaking change</span>**_: Moved all device type subpackages (AWGs, AFGs, Scopes, SMUs, etc.) up to the top level of the `drivers` subpackage.
+- _**<span style="color:orange">minor breaking change</span>**_: Converted all family base classes to inherit from the device control mixins.
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Renamed the `get_eventlog_status()` method to `_get_errors()` and made it a required, abstract method for all devices to implement.
+    - To get similar functionality to the previous `get_eventlog_status()` method, switch to using the new `get_errors()` method.
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Changed the behavior of the `expect_esr()` method to expect an integer error code input and an optional tuple of error messages to compare against the actual error code and messages returned by the `_get_errors()` private method.
+- _**<span style="color:orange">minor breaking change</span>**_: Converted the `device_type` property into an abstract, cached property to force all children of the `Device` class to specify what type of device they are.
+- Updated the auto-generated command mixin classes to no longer use an `__init__()` method to enable the driver API documentation to render in a more usable way.
+- Switched from using standard `print()` calls to using the `logging` module for all logging in the `tm_devices` package.
+    - A configuration function provides the ability to set different logging levels for stdout and file logging.
+    - The config file and environment variable can also be used to control the logging functionality.
+    - The debug logging from the `pyvisa` package is also included in the log file by default.
+
+### Removed
+
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Removed previously deprecated `TekScopeSW` alias to the `TekScopePC` class.
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Removed previously deprecated `write_buffers()` from the `TSPControl` class.
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Removed Internal AFG methods from the `TekScopePC` driver, since they wouldn't have worked due to its lack of an IAFG.
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Removed previously deprecated `DEVICE_DRIVER_MODEL_MAPPING` constant.
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Removed the `DEVICE_TYPE_CLASSES` constant and the `device_type_classes.py` module.
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Removed many hacky implementations of `total_channels` and `all_channel_names_list` properties from drivers that don't need them anymore.
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Removed the `verify_values()`, `raise_failure()`, and `raise_error()` methods from all device drivers.
+    - These methods have been converted to helper functions and can be imported from the `tm_devices.helpers` subpackage now.
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Removed the `print_with_timestamp()` function since this functionality is now handled by the `logging` module.
+- _**<span style="color:red">BREAKING CHANGE</span>**_: Removed the `get_timestamp_string()` function since this functionality is now handled by the `logging` module.
+
+---
+
+## v2.5.0 (2024-10-30)
+
+### Merged Pull Requests
+
+- TekScope2K - turn on HEADER and VERBOSE options to query available data sources correctly ([#327](https://github.com/tektronix/tm_devices/pull/327))
+- fix: line fix ([#339](https://github.com/tektronix/tm_devices/pull/339))
+- ci: Skip updating the mdformat repo during the dependency updater workflow ([#335](https://github.com/tektronix/tm_devices/pull/335))
+- gh-actions(deps): bump tektronix/python-package-ci-cd ([#320](https://github.com/tektronix/tm_devices/pull/320))
+- TSP environment cleanup ([#328](https://github.com/tektronix/tm_devices/pull/328))
+- feat: Added USB support for AFG31K and MDO3 models ([#331](https://github.com/tektronix/tm_devices/pull/331))
+- ci: Remove pre-commit hook that no longer works on Python 3.8 and replace with one that does ([#323](https://github.com/tektronix/tm_devices/pull/323))
+- python-deps(deps-dev): bump the python-dependencies group with 2 updates ([#311](https://github.com/tektronix/tm_devices/pull/311))
+- python-deps(deps): bump the python-dependencies group with 3 updates ([#318](https://github.com/tektronix/tm_devices/pull/318))
+- test: Ignore googletagmanager links during doctests ([#312](https://github.com/tektronix/tm_devices/pull/312))
+- ci: Enable testing for Python 3.13 ([#309](https://github.com/tektronix/tm_devices/pull/309))
+
+### Fixed
+
+- fix: TekScope2K active channel query needs HEADER options enabled to function properly
+
+### Added
+
+- `collectgarbage()` is now called during cleanup of `TSPControl` children.
+- Added USBTMC Support for the AFG31K and MDO3 drivers.
+
+---
+
+## v2.4.0 (2024-09-19)
+
+### Merged Pull Requests
+
+- Update TSPDevice.load_script() to accept raw strings ([#308](https://github.com/tektronix/tm_devices/pull/308))
+- fix: Update stub generation helper function to handle classes followed by dataclasses ([#307](https://github.com/tektronix/tm_devices/pull/307))
+- Add function to register USBTMC connection information for devices that don't have native USBTMC connection support in tm_devices ([#306](https://github.com/tektronix/tm_devices/pull/306))
+- python-deps(deps-dev): Bump the python-dependencies group with 2 updates ([#304](https://github.com/tektronix/tm_devices/pull/304))
+- fix: Ensure that the default VISA timeout value is not overwritten if a new config is loaded that doesn't specify a default VISA timeout. ([#303](https://github.com/tektronix/tm_devices/pull/303))
+- gh-actions(deps): Bump tektronix/python-package-ci-cd ([#287](https://github.com/tektronix/tm_devices/pull/287))
+- chore: Bump the version of tektronix/python-package-ci-cd to v1.3.0 in workflows ([#301](https://github.com/tektronix/tm_devices/pull/301))
+- build: Update license identifier ([#299](https://github.com/tektronix/tm_devices/pull/299))
+- python-deps(deps): Bump the python-dependencies group with 3 updates ([#300](https://github.com/tektronix/tm_devices/pull/300))
+- Enable customizing the default visa timeout ([#293](https://github.com/tektronix/tm_devices/pull/293))
+- python-deps(deps-dev): Bump the python-dependencies group with 4 updates ([#296](https://github.com/tektronix/tm_devices/pull/296))
+- Update python-pacage-ci-cd to v1.1.0 and use tokens to upload to PyPI ([#291](https://github.com/tektronix/tm_devices/pull/291))
+- python-deps(deps): Bump the python-dependencies group across 1 directory with 2 updates ([#288](https://github.com/tektronix/tm_devices/pull/288))
+- chore: Remove an unneeded development dependency ([#286](https://github.com/tektronix/tm_devices/pull/286))
+- Convert to using reusable workflows from the `tektronix/python-package-ci-cd` repo ([#284](https://github.com/tektronix/tm_devices/pull/284))
+
+### Added
+
 - Added a config option (`default_visa_timeout`) to specify the default VISA timeout for all initial VISA device connections.
+- Added a new function, `register_additional_usbtmc_mapping()`, to enable users to add USBTMC connection information for devices that don't have native support for USBTMC connections in `tm_devices` yet.
+- Added `TSPDevice.export_buffers()` to write tsp buffer data fields to file, default is comma separated values with buffer names header.
 
 ### Changed
 
 - Switched all workflows to use the new [`tektronix/python-package-ci-cd`](https://github.com/tektronix/python-package-ci-cd) reusable workflows.
 - Reduced the out-of-the box `default_visa_timeout` value from 30 seconds to 5 seconds.
+- _**SEMI-BREAKING CHANGE**_: Changed the `USB_MODEL_ID_LOOKUP` constant to use `SupportedModels` as keys instead of values to make the documentation clearer.
+- _**SEMI-BREAKING CHANGE**_: Changed the `DEVICE_DRIVER_MODEL_MAPPING` constant to use `SupportedModels` as keys instead of values to make the documentation clearer.
+- _**SEMI-BREAKING CHANGE**_: Changed the input parameter order in `TSPDevice.load_script()` and updated it to accept raw string input in addition to the `file_path` parameter for the script content.
+- Verbosity with `PIDevice.write()` now handles multiline input printouts.
+
+### Deprecated
+
+- Renamed `TSPDevice.write_buffers()` to `TSPDevice.export_buffers()` for clarity.
+
+### Fixed
+
+- Fixed a bug in the stubgen helper code responsible for adding dynamically added methods to stub files that caused invalid stub files to be created if a dataclass immediately followed a class that was being dynamically updated.
 
 ---
 
@@ -140,11 +255,11 @@ Things to be included in the next release go here.
 
 ### Changed
 
-- <span style="color:red">BREAKING CHANGE</span>. Changed the term "signal source" to "signal generator".
+- _**<span style="color:red">BREAKING CHANGE</span>**_. Changed the term "signal source" to "signal generator".
     - All uses of this term are changed. Import paths now use `signal_generator` instead of `signal_source`.
-- <span style="color:red">BREAKING CHANGE</span>. Changed the function name of `generate_waveform()` to `generate_function()`.
+- _**<span style="color:red">BREAKING CHANGE</span>**_. Changed the function name of `generate_waveform()` to `generate_function()`.
     - `generate_waveform()` only exists on AWGs now, however the functionality is entirely changed.
-- <span style="color:red">BREAKING CHANGE</span>. Changed the `generate_function()` function by removing burst functionality.
+- _**<span style="color:red">BREAKING CHANGE</span>**_. Changed the `generate_function()` function by removing burst functionality.
     - Any use of burst now must use `setup_burst()` and `generate_burst()` instead.
 - Updated AWGs such that the `family_base_class` is at the series level.
 

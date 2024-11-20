@@ -10,7 +10,7 @@ This will print the available VISA devices to the console when run from a shell 
 ```console
 $ list-visa-resources
 [
-  "TCPIP0::192.168.0.100::inst0::INSTR",
+  "TCPIP0::192.168.0.1::inst0::INSTR",
   "ASRL4::INSTR"
 ]
 ```
@@ -59,6 +59,23 @@ outside the Python code for ease of automation
 --8<-- "examples/miscellaneous/adding_devices_with_env_var.py"
 ```
 
+## Customize logging and console output
+
+The amount of console output and logging saved to the log file can be customized as needed. This
+configuration can be done in the Python code itself as demonstrated here, or by using the
+[config file](configuration.md#config-options) or
+[environment variable](configuration.md#environment-variable).
+
+!!! important
+    If any configuration is performed in the Python code prior to instantiating the
+    [`DeviceManager`][tm_devices.DeviceManager], all other logging configuration methods
+    (config file, env var) will be ignored.
+
+```python
+# fmt: off
+--8<-- "examples/miscellaneous/customize_logging.py"
+```
+
 ## Disable command checking
 
 This removes an extra query that verifies the property was set to the expected
@@ -81,6 +98,17 @@ on CH1 of the SCOPE.
 ```python
 # fmt: off
 --8<-- "examples/scopes/tekscope/generate_internal_afg_signal.py"
+```
+
+## Save a screenshot from the device to the local machine
+
+`tm_devices` provides the ability to save a screenshot with device drivers that inherit from the
+[`ScreenCaptureMixin`][tm_devices.driver_mixins.abstract_device_functionality.screen_capture_mixin.ScreenCaptureMixin],
+and then copy that screenshot to the local machine running the Python script.
+
+```python
+# fmt: off
+--8<-- "examples/scopes/tekscope/save_screenshot.py"
 ```
 
 ## Curve query saved to csv
@@ -169,7 +197,7 @@ first instantiated.
 In order to do this a few things will need to be created:
 
 1. A custom device class. Ideally this would inherit from one of the
-    [main device types](advanced/architecture.md#main-device-types), though a custom class
+    [main device types](advanced/architecture.md#device-types), though a custom class
     representing an unsupported device type can also be created.
 2. A mapping of the parsed model series string to the Python class.
 

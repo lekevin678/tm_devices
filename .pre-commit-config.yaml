@@ -13,7 +13,7 @@ ci:
     - poetry-audit
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c  # frozen: v4.6.0
+    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # frozen: v5.0.0
     hooks:
       - id: check-yaml
         args: [--unsafe]
@@ -39,7 +39,7 @@ repos:
       - id: remove-tabs
       - id: forbid-tabs
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 5c70e3d884fdbe99af42f2714a444e39f321498d  # frozen: 0.29.2
+    rev: 37cd56d9d154dfb0648eaee8efc1040512700c47  # frozen: 0.29.4
     hooks:
       - id: check-readthedocs
       - id: check-dependabot
@@ -47,31 +47,19 @@ repos:
       - id: check-github-workflows
         args: [--verbose]
   - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
-    rev: c01fb5723b54075325cd9b5e5665a9ae84baf950  # frozen: v1.7.1.15
+    rev: a1faddedc7c21fa1a5b9bb42e1c3ddbe94e96aa3  # frozen: v1.7.4.18
     hooks:
       - id: actionlint
         additional_dependencies: [pyflakes, shellcheck-py]
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: d7e01aa9b0cfe3c1b732e66d523bbd0656221127  # frozen: v3.29.0
+    rev: d3f092d98dc7585ce9cb3295bafb942ca5be1886  # frozen: v3.31.0
     hooks:
       - id: commitizen
         stages: [commit-msg]
-  - repo: https://github.com/adamchainz/blacken-docs
-    rev: 4c97c4a0d921007af6fefae92d8447cfbf63720b  # frozen: 1.18.0
-    hooks:
-      - id: blacken-docs
-        files: \.(rst|md|markdown|tex)$
-        additional_dependencies: [black==24.4.2]  # This may need to be updated/removed in the future once ruff supports formatting python code blocks in markdown
-        args: [--line-length=100]
   - repo: https://github.com/lyz-code/yamlfix
     rev: 8072181c0f2eab9f2dd8db2eb3b9556d7cd0bd74  # frozen: 1.17.0
     hooks:
       - id: yamlfix
-# TODO: get this working
-#  - repo: https://github.com/motet-a/jinjalint
-#    rev: "0.5"
-#    hooks:
-#      - id: jinjalint
   - repo: https://github.com/thibaudcolas/curlylint
     rev: 71adf4d34c290684fd9f94a4d21ac55bcfe640f0  # frozen: v0.13.1
     hooks:
@@ -84,6 +72,7 @@ repos:
         additional_dependencies:
           - setuptools  # This is required since Python 3.12 no longer installs setuptools by default in virtual environments
           - mdformat-admon
+          - mdformat-black  # This may need to be updated/removed in the future once ruff supports formatting python code blocks in markdown
           - mdformat-beautysh
           - mdformat-config
           - mdformat-footnote
@@ -144,13 +133,14 @@ repos:
         always_run: true
         args: [audit, --json, --ignore-code=CVE-2019-8341]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: f1ebc5730d98440041cc43e4d69829ad598ae1e7  # frozen: v0.6.3
+    rev: cafecb2f683a620516412e109877570ca7648cbd  # frozen: v0.7.4
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
-  - repo: https://github.com/PyCQA/docformatter
-    rev: dfefe062799848234b4cd60b04aa633c0608025e  # frozen: v1.7.5
-    hooks:
-      - id: docformatter
-        additional_dependencies: [tomli]
+  # TODO: Re-enable this once https://github.com/PyCQA/docformatter/issues/293 is resolved
+  #  - repo: https://github.com/PyCQA/docformatter
+  #    rev: dfefe062799848234b4cd60b04aa633c0608025e  # frozen: v1.7.5
+  #    hooks:
+  #      - id: docformatter
+  #        additional_dependencies: [tomli]

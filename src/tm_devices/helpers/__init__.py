@@ -30,16 +30,17 @@ from tm_devices.helpers.functions import (
     create_visa_connection,
     detect_visa_resource_expression,
     get_model_series,
-    get_timestamp_string,
     get_version,
     get_visa_backend,
     ping_address,
-    print_with_timestamp,
+    register_additional_usbtmc_mapping,
     sanitize_enum,
 )
+from tm_devices.helpers.logging import configure_logging, LoggingLevels
 from tm_devices.helpers.read_only_cached_property import ReadOnlyCachedProperty
 from tm_devices.helpers.singleton_metaclass import Singleton
 from tm_devices.helpers.standalone_functions import validate_address
+from tm_devices.helpers.verification_functions import raise_error, raise_failure, verify_values
 
 __all__ = [
     "AliasDict",
@@ -49,19 +50,22 @@ __all__ = [
     "check_network_connection",
     "check_port_connection",
     "check_visa_connection",
+    "configure_logging",
     "create_visa_connection",
     "detect_visa_resource_expression",
     "DeviceConfigEntry",
     "DeviceTypes",
     "DMConfigOptions",
     "get_model_series",
-    "get_timestamp_string",
     "get_version",
     "get_visa_backend",
+    "LoggingLevels",
     "PACKAGE_NAME",
     "ping_address",
-    "print_with_timestamp",
     "PYVISA_PY_BACKEND",
+    "raise_error",
+    "raise_failure",
+    "register_additional_usbtmc_mapping",
     "sanitize_enum",
     "SerialConfig",
     "Singleton",
@@ -72,6 +76,7 @@ __all__ = [
     "USBTMCConfiguration",
     "VALID_DEVICE_CONNECTION_TYPES",
     "validate_address",
+    "verify_values",
     "VISA_RESOURCE_EXPRESSION_REGEX",
     "ReadOnlyCachedProperty",
     "SASSetWaveformFileTypes",

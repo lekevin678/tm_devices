@@ -10,7 +10,7 @@ devices:
       - q: loadscript tsp_script
       - q: loadscript tsp_function
       - q: print("TEK")
-      - q: '"""Sample script used in test_smu.py."""'
+      - q: -- Sample script used in test_smu.py.
       - q: endscript
       - q: tsp_script.save()
       - q: tsp_script()
@@ -20,7 +20,7 @@ devices:
       - q: print(status.standard.enable)
         r: 1
       - q: opc()
-      - q: print([[1]])
+      - q: waitcomplete() print([[1]])
         r: 1
       - q: reset()
       - q: status.request_enable = 1
@@ -31,6 +31,7 @@ devices:
       - q: print([[0]])
         r: 0
       - q: waitcomplete()
+      - q: collectgarbage()
     error:
       status_register:
         - q: print(status.standard.event)

@@ -6,6 +6,7 @@ from __future__ import annotations
 import contextlib
 import inspect
 import json
+import logging
 import os
 import pathlib
 import socket
@@ -17,23 +18,26 @@ from typing import cast, Dict, Mapping, Optional, Tuple, Type, TYPE_CHECKING, Un
 from typing_extensions import TypeVar
 
 from tm_devices.components import DMConfigParser
-from tm_devices.drivers.api.rest_api.margin_testers.margin_tester import MarginTester
-from tm_devices.drivers.api.rest_api.rest_api_device import RESTAPIDevice
-from tm_devices.drivers.device import Device
-from tm_devices.drivers.pi.data_acquisition_systems.data_acquisition_system import (
+from tm_devices.driver_mixins.device_control.pi_control import PIControl
+from tm_devices.drivers._device_driver_mapping import (
+    _DEVICE_DRIVER_MODEL_STR_MAPPING,  # pyright: ignore[reportPrivateUsage]
+)
+from tm_devices.drivers.afgs.afg import AFG
+from tm_devices.drivers.awgs.awg import AWG
+from tm_devices.drivers.data_acquisition_systems.data_acquisition_system import (
     DataAcquisitionSystem,
 )
-from tm_devices.drivers.pi.digital_multimeters.digital_multimeter import DigitalMultimeter
-from tm_devices.drivers.pi.pi_device import PIDevice
-from tm_devices.drivers.pi.power_supplies.power_supply import PowerSupplyUnit
-from tm_devices.drivers.pi.scopes.scope import Scope
-from tm_devices.drivers.pi.signal_generators.afgs.afg import AFG
-from tm_devices.drivers.pi.signal_generators.awgs.awg import AWG
-from tm_devices.drivers.pi.source_measure_units.source_measure_unit import SourceMeasureUnit
-from tm_devices.drivers.pi.systems_switches.systems_switch import SystemsSwitch
+from tm_devices.drivers.device import Device
+from tm_devices.drivers.digital_multimeters.digital_multimeter import DigitalMultimeter
+from tm_devices.drivers.margin_testers.margin_tester import MarginTester
+from tm_devices.drivers.power_supplies.power_supply import PowerSupplyUnit
+from tm_devices.drivers.scopes.scope import Scope
+from tm_devices.drivers.source_measure_units.source_measure_unit import SourceMeasureUnit
+from tm_devices.drivers.systems_switches.systems_switch import SystemsSwitch
 from tm_devices.helpers import (
     AliasDict,
     check_for_update,
+    configure_logging,
     ConnectionTypes,
     create_visa_connection,
     detect_visa_resource_expression,
@@ -42,7 +46,6 @@ from tm_devices.helpers import (
     DMConfigOptions,
     get_model_series,
     PACKAGE_NAME,
-    print_with_timestamp,
     PYVISA_PY_BACKEND,
     SerialConfig,
     Singleton,
@@ -96,6 +99,8 @@ SystemsSwitchAlias = TypeVar("SystemsSwitchAlias", bound=SystemsSwitch, default=
 UnsupportedDeviceAlias = TypeVar("UnsupportedDeviceAlias", bound=Device, default=Device)
 """An alias to a custom device driver for an unsupported device type."""
 
+_logger: logging.Logger = logging.getLogger(__name__)
+
 
 ####################################################################################################
 # DeviceManager class
@@ -122,7 +127,11 @@ class DeviceManager(metaclass=Singleton):
         """Create the instance of the DeviceManager.
 
         Args:
-            verbose: A boolean indicating if verbose output should be printed.
+            verbose: A boolean indicating if verbose output should be printed. This flag cascades
+                down to all connected devices. Setting it to False **will not** remove all printouts
+                to stdout. To remove all console output, use
+                [`configure_logging()`][tm_devices.configure_logging] before instantiating the
+                DeviceManager.
             config_options: An optional set of configuration options to use
                 (updates the current configuration options).
             external_device_drivers: An optional dict for passing in additional device drivers.
@@ -131,13 +140,14 @@ class DeviceManager(metaclass=Singleton):
         # Set up the DeviceManager
         self.__is_open = False
         self.__verbose_visa = False
-        self.__devices: Dict[str, Union[PIDevice, RESTAPIDevice]] = AliasDict()
+        self.__devices: Dict[str, Device] = AliasDict()
         self._external_device_drivers = external_device_drivers
         # initialize for __set_options()
         self.__verbose: bool = NotImplemented
         self.__teardown_cleanup_enabled: bool = NotImplemented
         self.__setup_cleanup_enabled: bool = NotImplemented
         self.__visa_library: str = NotImplemented
+        self.__default_visa_timeout: int = NotImplemented
 
         # Create the config
         self.__config = DMConfigParser()
@@ -147,6 +157,14 @@ class DeviceManager(metaclass=Singleton):
             check_for_update()
         # actually populate the options
         self.__set_options(verbose)
+
+        # Pass in the options from the config file or environment variable to the logger
+        logging_options = {
+            key: value
+            for key, value in self.__config.options.to_dict(ignore_none=True).items()
+            if key.startswith("log_")
+        }
+        configure_logging(**logging_options)
 
         self.open()
 
@@ -181,7 +199,18 @@ class DeviceManager(metaclass=Singleton):
     # Properties
     ################################################################################################
     @property
-    def devices(self) -> Mapping[str, Union[RESTAPIDevice, PIDevice]]:
+    def default_visa_timeout(self) -> int:
+        """Return the default VISA timeout value."""
+        return self.__default_visa_timeout
+
+    @default_visa_timeout.setter
+    def default_visa_timeout(self, value: int) -> None:
+        """Set the default VISA timeout value."""
+        self.__config.options.default_visa_timeout = value
+        self.__default_visa_timeout = value
+
+    @property
+    def devices(self) -> Mapping[str, Device]:
         """Return the dictionary of devices."""
         return MappingProxyType(self.__devices)
 
@@ -235,8 +264,11 @@ class DeviceManager(metaclass=Singleton):
             visa.log_to_screen()
         else:
             for handler in visa.logger.handlers.copy():
-                if "DEBUG" in str(handler):
-                    visa.logger.removeHandler(handler)
+                if "DEBUG" in str(handler) and (
+                    isinstance(handler, logging.StreamHandler)
+                    and not isinstance(handler, logging.FileHandler)
+                ):
+                    visa.logger.removeHandler(handler)  # pyright: ignore[reportUnknownArgumentType]
         self.__config.options.verbose_visa = value
         self.__verbose_visa = value
 
@@ -669,21 +701,20 @@ class DeviceManager(metaclass=Singleton):
             try:
                 device_object.cleanup(verbose=bool(self.__config.options.verbose_mode))
             except (visa.errors.Error, socket.error, RPCError, AttributeError):  # noqa: PERF203
-                print(f"Device cleanup of {device_name} failed. Retrying...")
+                _logger.warning("Device cleanup of %s failed. Retrying...", device_name)
                 device_object.cleanup()
 
     def close(self) -> None:
         """Close the DeviceManager."""
         self.__protect_access()
-        print()
         if self.__devices:
-            print_with_timestamp("Closing Connections to Devices")
+            _logger.info("Closing Connections to Devices")
             if self.__teardown_cleanup_enabled:
                 self.cleanup_all_devices()
             for device_object in list(self.__devices.values()):
                 device_object.close()
         self.__is_open = False
-        print_with_timestamp(f"{self.__class__.__name__} Closed")
+        _logger.info("%s Closed", self.__class__.__name__)
 
     def disable_device_command_checking(self) -> None:
         """Set the `.enable_verification` attribute of each device to `False`.
@@ -833,7 +864,7 @@ class DeviceManager(metaclass=Singleton):
         device_type: Optional[str] = None,
         device_number: Optional[Union[int, str]] = None,
         alias: Optional[str] = None,
-    ) -> Union[RESTAPIDevice, PIDevice]:
+    ) -> Device:
         """Get the driver for the given device.
 
         Either `device_type` and `device_number` or `alias` must be provided when using this method.
@@ -993,13 +1024,11 @@ class DeviceManager(metaclass=Singleton):
         Args:
             config_file_path: The path to the config file to load.
         """
-        print_with_timestamp(
-            f"Loading Configuration from {pathlib.Path(config_file_path).resolve()}"
-        )
+        _logger.info("Loading Configuration from %s", pathlib.Path(config_file_path).resolve())
         self.__config.load_config_file(config_file_path)
         self.__set_options(self.__verbose)
         if len(self.__config.devices) != len(self.__devices):
-            print_with_timestamp("Opening Connections to Devices")
+            _logger.info("Opening Connections to Devices")
             for device_name, device_config in self.__config.devices.items():
                 if device_name not in self.__devices:
                     self.__create_device(device_name, device_config, 3)
@@ -1017,10 +1046,10 @@ class DeviceManager(metaclass=Singleton):
                 f"{self.__class__.__name__} has already been closed."
             )
             raise AssertionError(msg)
-        print_with_timestamp(f"Opening {self.__class__.__name__}")
+        _logger.info("Opening %s", self.__class__.__name__)
         # Create the devices
         if self.__config.devices:
-            print_with_timestamp("Opening Connections to Devices")
+            _logger.info("Opening Connections to Devices")
         for device_name, device_config in self.__config.devices.items():
             self.__create_device(device_name, device_config, 3)
         if self.__setup_cleanup_enabled:
@@ -1079,9 +1108,9 @@ class DeviceManager(metaclass=Singleton):
         Args:
             config_file_path: The path to the config file. If ends in ".toml" will create toml file.
         """
-        print_with_timestamp("Writing Configuration to file")
+        _logger.info("Writing Configuration to file")
         new_file_path = pathlib.Path(self.__config.write_config_to_file(config_file_path)).resolve()
-        print_with_timestamp(f"Wrote Configuration to {new_file_path}")
+        _logger.info("Wrote Configuration to %s", new_file_path)
 
     def get_current_configuration_as_environment_variable_strings(self) -> str:
         """Return the current configuration represented as environment variables."""
@@ -1101,7 +1130,7 @@ class DeviceManager(metaclass=Singleton):
         serial_config: Optional[SerialConfig] = None,
         device_driver: Optional[str] = None,
         gpib_board_number: Optional[int] = None,
-    ) -> Union[RESTAPIDevice, PIDevice]:
+    ) -> Device:
         """Add a device to the DeviceManager.
 
         Args:
@@ -1177,23 +1206,25 @@ class DeviceManager(metaclass=Singleton):
                 # 16 is the MAV bit (Message Available) from the Status Byte register
                 # MAV flag is only one bit and turns off after a single response is
                 # successfully read, even if there is more in the buffer.
-                warnings.warn(
+                msg = (
                     f"\nThe device `{visa_resource.resource_info.resource_name}` had data "
                     "sitting in the VISA Output Buffer on first connection. "
                     "\nDetected data in the buffer via the Status Byte register. "
-                    "\nThe device_clear() will be called so VISA I/O buffers get flushed.",
-                    stacklevel=1,
+                    "\nThe device_clear() will be called so VISA I/O buffers get flushed."
                 )
+                warnings.warn(msg, stacklevel=1)
+                _logger.warning(msg)
             # always flush the VISA I/O Buffers on the device to clean up any stale data.
             # (note: the Events are kept in different buffers, so *ESR? is not impacted)
             visa_resource.clear()
         except visa.VisaIOError as e:
-            warnings.warn(
+            msg = (
                 f"A VISA IO error occurred when attempting to read the status byte or clear the "
                 f"output buffer of the resource `{visa_resource.resource_info.resource_name}`.\n"
-                f"Error: {e}",
-                stacklevel=1,
+                f"Error: {e}"
             )
+            warnings.warn(msg, stacklevel=1)
+            _logger.warning(msg)
         visa_resource.write("*IDN?")
         idn_response = ""
         error_msg = None
@@ -1231,7 +1262,7 @@ class DeviceManager(metaclass=Singleton):
         device_config_name: str,
         device_config: DeviceConfigEntry,
         warning_stacklevel: int,
-    ) -> Union[RESTAPIDevice, PIDevice]:
+    ) -> Device:
         """Create a new device driver and add it to the device dictionary.
 
         Args:
@@ -1248,30 +1279,28 @@ class DeviceManager(metaclass=Singleton):
             SystemError: Indicates something went wrong when creating the device.
             AssertionError: Indicates something went wrong when creating the device.
         """
-        # pylint: disable=import-outside-toplevel
-        from tm_devices.drivers import DEVICE_DRIVER_MODEL_MAPPING
-
         if self._external_device_drivers is not None:
             device_drivers: Mapping[str, Type[Device]] = MappingProxyType(
-                {**self._external_device_drivers, **DEVICE_DRIVER_MODEL_MAPPING}
+                {**self._external_device_drivers, **_DEVICE_DRIVER_MODEL_STR_MAPPING}
             )
         else:
-            device_drivers = DEVICE_DRIVER_MODEL_MAPPING
+            device_drivers = _DEVICE_DRIVER_MODEL_STR_MAPPING
 
         alias_string = f' "{device_config.alias}"' if device_config.alias else ""
         if device_config.device_type == DeviceTypes.UNSUPPORTED:
-            warnings.warn(
+            msg = (
                 f"An unsupported device type is being added to the {self.__class__.__name__}. "
                 f"Not all functionality will be available in the device driver. "
                 f"Please consider contributing to {PACKAGE_NAME} to implement official "
-                f"support for this device type.",
-                stacklevel=warning_stacklevel,
+                f"support for this device type."
             )
-        print_with_timestamp(f"Creating Connection to {device_config_name}{alias_string}")
-        new_device: Union[RESTAPIDevice, PIDevice]
+            warnings.warn(msg, stacklevel=warning_stacklevel)
+            _logger.warning(msg)
+        _logger.info("Creating Connection to %s%s", device_config_name, alias_string)
+        new_device: Device
         if device_config.connection_type == ConnectionTypes.REST_API:
             device_driver_class = device_drivers[str(device_config.device_driver)]
-            new_device = cast(RESTAPIDevice, device_driver_class(device_config, self.__verbose))
+            new_device = device_driver_class(device_config, self.__verbose)
         else:
             # Create VISA connection and determine proper device driver
             try:
@@ -1355,7 +1384,7 @@ class DeviceManager(metaclass=Singleton):
         visa_resource: MessageBasedResource,
         device_config: DeviceConfigEntry,
         device_drivers: Mapping[str, Type[Device]],
-    ) -> PIDevice:
+    ) -> Device:
         """Select the correct VISA device driver based on the ``*IDN?`` response.
 
         Be sure to handle removing the device from the config on a SystemError.
@@ -1375,12 +1404,12 @@ class DeviceManager(metaclass=Singleton):
         model_series = ""
         try:
             model_series = get_model_series(idn_response.split(",")[1])
-            device_driver = cast(Type[PIDevice], device_drivers[model_series])
+            device_driver = cast(Type[PIControl], device_drivers[model_series])
             new_device = device_driver(
                 device_config,
                 self.__verbose,
                 visa_resource,
-                self.__config.options.default_visa_timeout,
+                self.__default_visa_timeout,
             )
         except (KeyError, IndexError) as error:
             visa_resource.close()
@@ -1390,7 +1419,7 @@ class DeviceManager(metaclass=Singleton):
             message += f" *IDN? returned {idn_response!r}"
             raise SystemError(message) from error
 
-        return new_device
+        return cast(Device, new_device)
 
     def __set_options(self, verbose: bool) -> None:
         """Set the options for the DeviceManager.
@@ -1403,6 +1432,11 @@ class DeviceManager(metaclass=Singleton):
         )
         self.__teardown_cleanup_enabled = bool(self.__config.options.teardown_cleanup)
         self.__setup_cleanup_enabled = bool(self.__config.options.setup_cleanup)
+        self.__default_visa_timeout = (
+            5000
+            if self.__config.options.default_visa_timeout is None
+            else self.__config.options.default_visa_timeout
+        )
         # Configure the VISA library
         if self.__config.options.standalone:
             self.__visa_library = PYVISA_PY_BACKEND
@@ -1420,4 +1454,4 @@ def print_available_visa_devices() -> None:  # pragma: no cover
     """Print all available VISA devices to the console."""
     with contextlib.redirect_stdout(None), contextlib.redirect_stderr(None), DeviceManager() as dm:
         available_devices = dm.get_available_devices()
-    print(json.dumps(available_devices["local"], indent=2))
+    print(json.dumps(available_devices["local"], indent=2))  # noqa: T201
